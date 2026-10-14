@@ -4,7 +4,9 @@
 #creation-editor .editor-kicker{font-size:11px;letter-spacing:3px;color:#95703f;margin-bottom:7px}
 #creation-editor .editor-top h2{font:600 28px/1.6 var(--serif);margin:0}
 #creation-editor .editor-top h2:before,#creation-editor .manuscript h2:before,#creation-editor .related h2:before{content:none}
-#creation-editor .editor-back{flex-shrink:0;background:transparent;border:1px solid #ac81494a;border-radius:18px;padding:6px 13px;color:#76542e;font-size:12px}
+#creation-editor .editor-back{flex-shrink:0;background:#18354a;border:1px solid #b28b50;border-radius:22px;padding:8px 18px;color:#ffe5b2;font-size:13px;font-weight:600;box-shadow:0 3px 9px #06132026}
+#creation-editor .editor-back:hover{background:#254b64}
+#creation-editor .editor-back:focus-visible{outline:2px solid #18354a;outline-offset:3px}
 #creation-editor .studio{display:block}
 #creation-editor .section-label{font-size:12px;color:#755538;margin-bottom:18px}
 #creation-editor .section-label small{font-size:10px;margin-right:9px;color:#a37d49}
