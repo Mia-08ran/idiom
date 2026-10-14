@@ -11,7 +11,7 @@
 ## 在 Cloudflare 部署（GitHub 连接方式）
 
 1. Cloudflare → Workers & Pages → Create application → 导入 GitHub 仓库 Mia-08ran/idiom。若列表里没有仓库，在 GitHub 授权页面允许 Cloudflare 访问 idiom。
-2. Worker 名称使用 idiom（与当前已创建的项目一致）；根目录设为 backend；构建命令留空；部署命令设为 npm run deploy。平台会安装 package.json 中的 Wrangler。配置文件 backend/wrangler.jsonc 含两个频率限制绑定，不能遗漏。不要选择仅发布静态网页的模式。
+2. Worker 名称使用 idiomm（与当前已创建的项目一致，末尾两个 m）；根目录设为 backend；构建命令留空；部署命令设为 npm run deploy。平台会安装 package.json 中的 Wrangler。配置文件 backend/wrangler.jsonc 含两个频率限制绑定，不能遗漏。不要选择仅发布静态网页的模式。
 3. 在该 Worker 的 Settings → Variables and Secrets 添加两个 Secret：
    - DEEPSEEK_API_KEY：用户自己填入 DeepSeek API 密钥。
    - TURNSTILE_SECRET_KEY：用户自己填入下一步创建的 Turnstile Secret key。
