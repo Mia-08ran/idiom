@@ -1,6 +1,6 @@
 # 成语智灵 · DeepSeek 故事后台
 
-状态：源代码已准备并用模拟响应测试；尚未部署到用户的 Cloudflare，也未调用真实 DeepSeek 密钥。没有密钥写入本目录。
+状态：后台已部署至 https://idiomm.tianran200806.workers.dev，前端已配置公开地址与 Turnstile Site key；真实生成仍需确认运行时配置齐全并验证。源代码已通过模拟响应测试，没有密钥写入本目录。
 
 ## 网站能力
 
@@ -17,7 +17,7 @@
    - TURNSTILE_SECRET_KEY：用户自己填入下一步创建的 Turnstile Secret key。
    不要把这两项发到聊天、提交 GitHub 或写在前端配置文件里。
 4. Cloudflare → Turnstile → Add widget。取名 idiom-creation，允许的主机名为 mia-08ran.github.io（不加协议和 /idiom/ 路径），选 Managed 模式。创建后有公开 Site key 和保密 Secret key。公开 Site key 可以提供给网站维护者；Secret key 只填上一步 Worker 的 Secret。
-5. 保存并部署 Worker。访问 https://你的Worker地址/health，应返回 {"ready":true}。
+5. 保存并部署 Worker。访问 https://你的Worker地址/health，应返回 ready:true；若为 false，missing 数组会列出缺少的配置名称，不包含任何密钥值。
 6. 将公开的 Worker 地址、Turnstile Site key 交给网站维护者；不交任何密钥。维护者在 assets/creation-config.js 中填写：
    endpoint = https://你的Worker地址/api/story
    turnstileSiteKey = 公开 Site key

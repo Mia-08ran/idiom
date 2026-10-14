@@ -25,7 +25,7 @@ export default {
  async fetch(request, env) {
   const path = new URL(request.url).pathname;
   const ready = Boolean(env.DEEPSEEK_API_KEY && env.TURNSTILE_SECRET_KEY && env.IP_RATE_LIMITER && env.SITE_RATE_LIMITER);
-  if (path === '/health' && request.method === 'GET') return json({ready});
+  if (path === '/health' && request.method === 'GET') return json({ready,missing:['DEEPSEEK_API_KEY','TURNSTILE_SECRET_KEY','IP_RATE_LIMITER','SITE_RATE_LIMITER'].filter(name=>!env[name])});
   if (path !== '/api/story') return json({error:'页面不存在。'},404);
   if (request.headers.get('Origin') !== ORIGIN) return new Response('Forbidden',{status:403});
   if (request.method === 'OPTIONS') return new Response(null,{status:204,headers:{'Access-Control-Allow-Origin':ORIGIN,'Access-Control-Allow-Methods':'POST','Access-Control-Allow-Headers':'Content-Type','Access-Control-Max-Age':'86400','Vary':'Origin'}});

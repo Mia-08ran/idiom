@@ -14,9 +14,9 @@
 
 ## AI接入状态
 
-创作页目前显示编辑示例，真实生成尚未启用；不会把示例冒充用户输入的生成结果。
-DeepSeek 后台源码和部署说明见 [backend/README.md](backend/README.md)。尚待用户在 Cloudflare 部署、配置保密设置与验证组件。
-只有填写公开后台地址和 Turnstile Site key 后，前端才开放真实生成。API 密钥只放后台 Secret，不能写入 HTML、前端配置、公开仓库或聊天。
+创作页已填写公开后台地址和 Turnstile Site key；后台已部署，真实生成尚待配置完整并验证。编辑示例始终标注为示例，不代表用户输入的生成结果。
+DeepSeek 后台源码和部署说明见 [backend/README.md](backend/README.md)。健康检查会返回 ready 和缺失配置的名称，不返回密钥内容。
+后台地址：https://idiomm.tianran200806.workers.dev 。API 密钥只放后台 Secret，不能写入 HTML、前端配置、公开仓库或聊天。
 
 第一版只生成成语故事，不新增绘本生成。首页已有绘本继续保留。
 
