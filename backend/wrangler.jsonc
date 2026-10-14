@@ -1,0 +1,26 @@
+{
+  "name": "idiom-story-api",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-10-15",
+  "vars": {
+    "DEEPSEEK_MODEL": "deepseek-flash"
+  },
+  "ratelimits": [
+    {
+      "name": "IP_RATE_LIMITER",
+      "namespace_id": "218601",
+      "simple": {
+        "limit": 3,
+        "period": 60
+      }
+    },
+    {
+      "name": "SITE_RATE_LIMITER",
+      "namespace_id": "218602",
+      "simple": {
+        "limit": 10,
+        "period": 60
+      }
+    }
+  ]
+}

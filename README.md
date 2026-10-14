@@ -1,31 +1,41 @@
 # 成语智灵 · 成语星河
 
-以参考图的深蓝星河、金色书法与宣纸绘本视觉重做的网站。单一 HTML 入口，无构建依赖。
+静态网站部署于 GitHub Pages：https://mia-08ran.github.io/idiom/
 
 ## 当前内容
 
-- 首页：成语智灵，三个可用页面入口。
-- 成语百科：邯郸学步主词条，含典故插画、出处、词义对照和现代改编入口；东施效颦、生搬硬套、独辟蹊径、自成一家可点击查看本站解释页。
-- AI故事绘本：仅《如果邯郸学步发生在2026》，四幅插画、八幕翻页阅读，支持方向键和 Escape 关闭。
-- 关于我们：项目定位、原典与改编原则。
-- 共读助手：三个预设编辑解读，明确标注不是AI实时对话。
+- 首页：星河国风视觉，成语百科、既有绘本、创作说明入口。
+- 成语百科：邯郸学步释义与典故插画；东施效颦、生搬硬套、独辟蹊径、自成一家站内解释页。
+- AI故事绘本：已有《如果邯郸学步发生在2026》，四幅插画、八幕翻页阅读。
+- 我们来创作：项目定位与共创空间入口。
+- create.html：独立成语故事共创页。支持“输入成语”“说说困惑”两种起点，自动或手动选择青年成长主题；展示成语内核、现代意义、当代故事、行动建议与相关成语，可复制和下载文本。
+- 原共读对话框保留三个明确标注的预设编辑解读，并提供新创作页入口。
 
-## GPT状态
+## AI接入状态
 
-尚未接入 GPT。真实对话需要另外部署后台并安全配置 OpenAI API 密钥，不能把密钥放进HTML或公开仓库。GitHub Pages 无法运行该后台。
+创作页目前显示编辑示例，真实生成尚未启用；不会把示例冒充用户输入的生成结果。
+DeepSeek 后台源码和部署说明见 [backend/README.md](backend/README.md)。尚待用户在 Cloudflare 部署、配置保密设置与验证组件。
+只有填写公开后台地址和 Turnstile Site key 后，前端才开放真实生成。API 密钥只放后台 Secret，不能写入 HTML、前端配置、公开仓库或聊天。
 
-## 发布
+第一版只生成成语故事，不新增绘本生成。首页已有绘本继续保留。
 
-GitHub 仓库 Settings → Pages → Deploy from a branch → main → / (root) → Save。
-预期地址：https://mia-08ran.github.io/idiom/ 。是否已发布，以实际访问结果为准。
+## 文件与检查
+
+- index.html：现有网站与路由。
+- create.html、assets/creation.js：新创作页面和交互。
+- assets/creation-config.js：仅包含公开的后台地址与验证站点公钥。
+- backend/worker.mjs、backend/wrangler.jsonc：DeepSeek 调用、服务端验证和频率限制。
+- qa/worker.test.mjs：使用模拟验证服务和模型输出验证后台边界；运行 node --test qa/worker.test.mjs，不调用真实 API。
+
+浏览器已检查桌面及 320/390/799 像素布局、入口跳转、输入模式、相关推荐、复制下载和模拟生成成功/失败。模拟测试不代表真实 DeepSeek 调用已成功。
 
 ## 资源
 
 - assets/galaxy.webp：原创星河国风背景。
-- assets/scenes.webp：同一位现代大学生的四格连续故事插画，网页按格显示。
-- assets/handan-classical.webp：邯郸学步古代典故想象插画，不作为历史场景复原。
-- assets/image-prompts.txt：内置 ImageGen 原始提示词。
+- assets/scenes.webp：同一位现代大学生的四格故事插画。
+- assets/handan-classical.webp：古代典故想象插画，不作为历史复原。
+- assets/spirit-avatar.webp：国风书灵头像。
+- assets/image-prompts.txt：ImageGen 原始提示词。
+- assets/fonts/star-brush.woff2：Ma Shan Zheng 字体子集；授权见 assets/fonts/OFL.txt。
 
-本篇是现代创意改编，不是历史原典复述。原意参考：https://dict.idioms.moe.edu.tw/idiomView.jsp?ID=5867&la=0&webMd=1 。
-
-此前的米白封面版本已被替换，不作为网站发布内容保留。
+现代故事均为创意改编。邯郸学步原意参考：https://dict.idioms.moe.edu.tw/idiomView.jsp?ID=5867&la=0&webMd=1
