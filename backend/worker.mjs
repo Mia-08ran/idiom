@@ -49,9 +49,13 @@ export default {
    const ipLimit=await env.IP_RATE_LIMITER.limit({key:ip});
    if(!ipLimit.success)return json({error:'你刚刚创作得有些频繁，请一分钟后再试。'},429);
    const verification=await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({secret:env.TURNSTILE_SECRET_KEY,response:input.turnstileToken,remoteip:ip}),signal:AbortSignal.timeout(10000)});
-   if(!verification.ok)return json({error:'验证服务暂时不可用，请稍后重试。'},503);
-   const checked=await verification.json();
-   if(!checked.success||checked.hostname!=='mia-08ran.github.io'||checked.action!=='create-story')return json({error:'验证已失效，请重新完成验证后再试。'},403);
+   let checked;
+   try{checked=await verification.json();}catch{return json({error:'验证服务连接异常（V'+verification.status+'），请稍后重试。'},503);}
+   const codes=Array.isArray(checked?.['error-codes'])?checked['error-codes']:[];
+   if(codes.includes('invalid-input-secret')||codes.includes('missing-input-secret'))return json({error:'验证密钥配置无效，请管理员重新保存 Turnstile 的 Secret key。'},503);
+   if(codes.includes('invalid-input-response')||codes.includes('missing-input-response')||codes.includes('timeout-or-duplicate'))return json({error:'验证已失效，请重新完成验证后再试。'},403);
+   if(!verification.ok)return json({error:'验证服务连接异常（V'+verification.status+'），请稍后重试。'},503);
+   if(!checked?.success||checked.hostname!=='mia-08ran.github.io'||checked.action!=='create-story')return json({error:'验证未通过，请重新完成验证后再试。'},403);
    const siteLimit=await env.SITE_RATE_LIMITER.limit({key:'story'});
    if(!siteLimit.success)return json({error:'目前创作人数较多，请一分钟后再试。'},429);
    const upstream=await fetch('https://api.deepseek.com/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+env.DEEPSEEK_API_KEY},body:JSON.stringify({

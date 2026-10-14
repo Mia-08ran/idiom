@@ -9,8 +9,8 @@ const input={mode:'concern',idiom:'',concern:'同学都在学AI，我找不到�
 const origin='https://mia-08ran.github.io';
 const env=()=>({DEEPSEEK_API_KEY:'unit-test-secret',TURNSTILE_SECRET_KEY:'unit-test-verification',IP_RATE_LIMITER:{limit:async()=>({success:true})},SITE_RATE_LIMITER:{limit:async()=>({success:true})}});
 const req=(body=input,headers={})=>new Request('https://worker.example/api/story',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json','CF-Connecting-IP':'192.0.2.10',...headers},body:typeof body==='string'?body:JSON.stringify(body)});
-let calls=[], verify={success:true,hostname:'mia-08ran.github.io',action:'create-story'},upstream={choices:[{finish_reason:'stop',message:{content:JSON.stringify(story)}}]},upstreamStatus=200;
-function mockFetch(){calls=[];verify={success:true,hostname:'mia-08ran.github.io',action:'create-story'};upstream={choices:[{finish_reason:'stop',message:{content:JSON.stringify(story)}}]};upstreamStatus=200;globalThis.fetch=async(url,options)=>{calls.push({url,options});return Response.json(url.includes('siteverify')?verify:upstream,{status:url.includes('siteverify')?200:upstreamStatus});};}
+let calls=[], verify={success:true,hostname:'mia-08ran.github.io',action:'create-story'},upstream={choices:[{finish_reason:'stop',message:{content:JSON.stringify(story)}}]},upstreamStatus=200,verificationStatus=200;
+function mockFetch(){calls=[];verify={success:true,hostname:'mia-08ran.github.io',action:'create-story'};upstream={choices:[{finish_reason:'stop',message:{content:JSON.stringify(story)}}]};upstreamStatus=200;verificationStatus=200;globalThis.fetch=async(url,options)=>{calls.push({url,options});return Response.json(url.includes('siteverify')?verify:upstream,{status:url.includes('siteverify')?verificationStatus:upstreamStatus});};}
 test('request validation and fail-closed configuration',async()=>{
  mockFetch();assert.equal((await worker.fetch(new Request('https://worker.example/health'),{})).status,200);
  assert.equal((await (await worker.fetch(new Request('https://worker.example/health'),{})).json()).ready,false);
@@ -45,4 +45,15 @@ test('upstream failures, invalid output and truncation are explicit',async()=>{
  mockFetch();upstream.choices[0].finish_reason='length';assert.equal((await worker.fetch(req(),env())).status,502);
  mockFetch();upstream.choices[0].message.content=JSON.stringify({...story,sections:[]});assert.equal((await worker.fetch(req(),env())).status,502);
  mockFetch();upstream.choices[0].message.content=JSON.stringify({error:'unknown idiom'});assert.equal((await worker.fetch(req(),env())).status,422);
+});
+
+test('verification failures distinguish invalid secrets, expired tokens and unavailable service',async()=>{
+ for(const status of [200,400]){
+  mockFetch();verificationStatus=status;verify={success:false,'error-codes':['invalid-input-secret'],private:'unit-test-verification'};
+  let r=await worker.fetch(req(),env());assert.equal(r.status,503);let body=await r.text();assert(body.includes('验证密钥配置无效'));assert(!body.includes('unit-test-verification'));assert.equal(calls.length,1);
+  mockFetch();verificationStatus=status;verify={success:false,'error-codes':['timeout-or-duplicate']};
+  r=await worker.fetch(req(),env());assert.equal(r.status,403);assert((await r.text()).includes('验证已失效'));assert.equal(calls.length,1);
+ }
+ mockFetch();verificationStatus=503;verify={success:false,'error-codes':['internal-error']};let r=await worker.fetch(req(),env());assert.equal(r.status,503);assert((await r.text()).includes('V503'));assert.equal(calls.length,1);
+ mockFetch();globalThis.fetch=async()=>new Response('<html>private upstream response unit-test-verification</html>',{status:403});r=await worker.fetch(req(),env());const text=await r.text();assert.equal(r.status,503);assert(text.includes('V403'));assert(!text.includes('private upstream response'));assert(!text.includes('unit-test-verification'));
 });
