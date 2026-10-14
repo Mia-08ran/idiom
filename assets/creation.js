@@ -8,7 +8,7 @@ const generateButton = document.getElementById('generate-story');
 const formMessage = document.getElementById('form-message');
 const outputMessage = document.getElementById('output-message');
 const manuscript = document.getElementById('manuscript');
-let theme = 'auto', token = '', widgetId, busy = false, currentStory, verificationStarted = false;
+let theme = 'auto', token = '', widgetId, busy = false, currentStory, verificationStarted = false, serviceReady = false;
 const configured = Boolean(config.endpoint && config.turnstileSiteKey);
 function element(tag, text, className) {
  const node = document.createElement(tag);
@@ -66,11 +66,21 @@ document.querySelectorAll('[data-theme]').forEach(button => button.addEventListe
  theme = button.dataset.theme;
  document.querySelectorAll('[data-theme]').forEach(item => item.setAttribute('aria-pressed', String(item === button)));
 }));
-function updateReady() { generateButton.disabled = busy || !configured || !token; }
+function updateReady() { generateButton.disabled = busy || !configured || !serviceReady || !token; }
 function startVerification() {
  if (!configured || verificationStarted) return;
  verificationStarted = true;
- document.getElementById('service-note').textContent = 'AI共创已配置 · 完成验证后可生成，通常需要几十秒。';
+ document.getElementById('service-note').textContent = '正在检查后台连接…';
+ fetch(new URL('/health', config.endpoint), {signal:AbortSignal.timeout(10000)})
+  .then(response => {if(!response.ok)throw new Error('unavailable');return response.json();})
+  .then(data => {
+   serviceReady = data.ready === true;
+   document.getElementById('service-note').textContent = serviceReady
+    ? 'AI共创已连接 · 完成验证后可生成，通常需要几十秒。'
+    : '后台的保密配置尚未生效，暂不能生成。已有示例仍可阅读。';
+   updateReady();
+  })
+  .catch(() => {document.getElementById('service-note').textContent = '暂时无法连接创作后台，请刷新后重试。已有示例仍可阅读。';updateReady();});
  document.getElementById('privacy-note').textContent = '点击生成后，成语、困惑和主题将通过后台发送给 DeepSeek。请勿填写姓名、联系方式等敏感信息。内容用于启发思考。';
  document.getElementById('verification').hidden = false;
  window.studioVerificationReady = () => {
@@ -100,7 +110,7 @@ function validStory(story) {
 }
 form.addEventListener('submit', async event => {
  event.preventDefault();
- if (busy || !configured || !token || !form.reportValidity()) return;
+ if (busy || !configured || !serviceReady || !token || !form.reportValidity()) return;
  const request = {mode:form.elements.mode.value,idiom:idiomInput.value.trim(),concern:concernInput.value.trim(),theme,turnstileToken:token};
  if ((request.mode === 'idiom' && !request.idiom) || (request.mode === 'concern' && !request.concern)) {formMessage.textContent='请先写下一个成语或你的困惑。';return;}
  busy = true; updateReady(); manuscript.setAttribute('aria-busy','true');
