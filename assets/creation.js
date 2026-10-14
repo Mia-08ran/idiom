@@ -8,7 +8,7 @@ const generateButton = document.getElementById('generate-story');
 const formMessage = document.getElementById('form-message');
 const outputMessage = document.getElementById('output-message');
 const manuscript = document.getElementById('manuscript');
-let theme = 'auto', token = '', widgetId, busy = false, currentStory;
+let theme = 'auto', token = '', widgetId, busy = false, currentStory, verificationStarted = false;
 const configured = Boolean(config.endpoint && config.turnstileSiteKey);
 function element(tag, text, className) {
  const node = document.createElement(tag);
@@ -67,13 +67,15 @@ document.querySelectorAll('[data-theme]').forEach(button => button.addEventListe
  document.querySelectorAll('[data-theme]').forEach(item => item.setAttribute('aria-pressed', String(item === button)));
 }));
 function updateReady() { generateButton.disabled = busy || !configured || !token; }
-if (configured) {
+function startVerification() {
+ if (!configured || verificationStarted) return;
+ verificationStarted = true;
  document.getElementById('service-note').textContent = 'AI共创已配置 · 完成验证后可生成，通常需要几十秒。';
  document.getElementById('privacy-note').textContent = '点击生成后，成语、困惑和主题将通过后台发送给 DeepSeek。请勿填写姓名、联系方式等敏感信息。内容用于启发思考。';
  document.getElementById('verification').hidden = false;
  window.studioVerificationReady = () => {
   widgetId = window.turnstile.render('#verification', {
-   sitekey:config.turnstileSiteKey, action:'create-story', theme:'dark', size:'flexible',
+   sitekey:config.turnstileSiteKey, action:'create-story', theme:'light', size:'flexible',
    callback:value => {token=value;updateReady();},
    'expired-callback':() => {token='';updateReady();},
    'error-callback':() => {token='';formMessage.textContent='验证暂时无法完成，请刷新后重试。';updateReady();}
@@ -84,7 +86,8 @@ if (configured) {
  script.async = true;
  script.onerror = () => {formMessage.textContent='验证服务未能加载，请检查网络后刷新。';};
  document.head.append(script);
-} else {
+}
+if (!configured) {
  document.getElementById('service-note').textContent = 'AI创作尚未接通。你可以先填写想法、切换主题，或阅读右侧编辑示例；当前不会发送你的输入。';
 }
 updateReady();
@@ -138,3 +141,23 @@ document.getElementById('download-story').addEventListener('click',()=>{
  setTimeout(()=>URL.revokeObjectURL(url),1000);outputMessage.textContent='已下载故事文本。';
 });
 updateMode();renderStory(exampleStory,true);
+
+const creationOverview = document.getElementById('creation-overview');
+const creationEditor = document.getElementById('creation-editor');
+function openCreation() {
+ const coReadDialog = document.getElementById('agent-dialog');
+ if (coReadDialog.open) coReadDialog.close();
+ if (location.hash !== '#about') location.hash = 'about';
+ creationOverview.hidden = true; creationEditor.hidden = false;
+ startVerification();
+ requestAnimationFrame(() => {
+  document.getElementById('creation-editor-title').focus({preventScroll:true});
+  document.getElementById('creation-paper').scrollIntoView({block:'start'});
+ });
+}
+document.querySelectorAll('[data-create]').forEach(button => button.addEventListener('click', openCreation));
+document.getElementById('close-creation').addEventListener('click', () => {
+ creationEditor.hidden = true; creationOverview.hidden = false;
+ creationOverview.querySelector('[data-create]').focus({preventScroll:true});
+ document.getElementById('creation-paper').scrollIntoView({block:'start'});
+});
