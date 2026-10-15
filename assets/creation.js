@@ -9,6 +9,7 @@ const formMessage = document.getElementById('form-message');
 const outputMessage = document.getElementById('output-message');
 const manuscript = document.getElementById('manuscript');
 let theme = 'auto', token = '', widgetId, busy = false, currentStory, verificationStarted = false, serviceReady = false;
+let serviceChecking = false;
 const configured = Boolean(config.endpoint && config.turnstileSiteKey);
 function element(tag, text, className) {
  const node = document.createElement(tag);
@@ -67,26 +68,60 @@ document.querySelectorAll('[data-theme]').forEach(button => button.addEventListe
  document.querySelectorAll('[data-theme]').forEach(item => item.setAttribute('aria-pressed', String(item === button)));
 }));
 function updateReady() { generateButton.disabled = busy || !configured || !serviceReady || !token; }
+const serviceNote = document.getElementById('service-note');
+const retryConnection = element('button', '重新连接后台', 'example-link');
+retryConnection.id = 'retry-connection'; retryConnection.type = 'button'; retryConnection.hidden = true;
+serviceNote.after(retryConnection);
+async function requestJSON(url, options, timeoutMs) {
+ const controller = new AbortController();
+ const timer = setTimeout(() => controller.abort(), timeoutMs);
+ try {
+  const response = await fetch(url, {...options,signal:controller.signal});
+  let data;
+  try {data = await response.json();}
+  catch (error) {if(controller.signal.aborted)throw error;throw new Error('服务暂时无法回应，请稍后重试。');}
+  return {response,data};
+ } finally {clearTimeout(timer);}
+}
+async function checkService() {
+ if (!configured || serviceChecking || busy) return;
+ serviceChecking = true; serviceReady = false; retryConnection.hidden = true; updateReady();
+ serviceNote.textContent = '正在检查后台连接…';
+ try {
+  for (let attempt = 0; attempt < 2; attempt++) {
+   try {
+    const {response,data} = await requestJSON(new URL('/health', config.endpoint), {cache:'no-store'}, 15000);
+    if(!response.ok)throw new Error('unavailable');
+    serviceReady = data.ready === true;
+    serviceNote.textContent = serviceReady
+     ? 'AI共创已连接 · 验证后可生成，繁忙时可能需要1～2分钟。'
+     : '后台配置暂未就绪，请稍后重新检查。已有示例仍可阅读。';
+    retryConnection.hidden = serviceReady;
+    break;
+   } catch (error) {
+    if(attempt === 1)throw error;
+    serviceNote.textContent = '连接较慢，正在重新检查…';
+    await new Promise(resolve => setTimeout(resolve,1000));
+   }
+  }
+ } catch {
+  serviceNote.textContent = '暂时无法连接创作后台。请点击重新连接，或切换网络后再试；你的输入会保留。';
+  retryConnection.hidden = false;
+ } finally {serviceChecking = false; updateReady();}
+}
+retryConnection.addEventListener('click', checkService);
+window.addEventListener('online', () => {if(verificationStarted && !serviceReady)checkService();});
 function startVerification() {
- if (!configured || verificationStarted) return;
+ if (!configured) return;
+ if (!serviceReady) checkService();
+ if (verificationStarted) return;
  verificationStarted = true;
- document.getElementById('service-note').textContent = '正在检查后台连接…';
- fetch(new URL('/health', config.endpoint), {signal:AbortSignal.timeout(10000)})
-  .then(response => {if(!response.ok)throw new Error('unavailable');return response.json();})
-  .then(data => {
-   serviceReady = data.ready === true;
-   document.getElementById('service-note').textContent = serviceReady
-    ? 'AI共创已连接 · 完成验证后可生成，通常需要几十秒。'
-    : '后台的保密配置尚未生效，暂不能生成。已有示例仍可阅读。';
-   updateReady();
-  })
-  .catch(() => {document.getElementById('service-note').textContent = '暂时无法连接创作后台，请刷新后重试。已有示例仍可阅读。';updateReady();});
  document.getElementById('privacy-note').textContent = '点击生成后，成语、困惑和主题将通过后台发送给 DeepSeek。请勿填写姓名、联系方式等敏感信息。内容用于启发思考。';
  document.getElementById('verification').hidden = false;
  window.studioVerificationReady = () => {
   widgetId = window.turnstile.render('#verification', {
    sitekey:config.turnstileSiteKey, action:'create-story', theme:'light', size:'flexible',
-   callback:value => {token=value;updateReady();},
+   callback:value => {token=value;if(!serviceReady && !serviceChecking)checkService();updateReady();},
    'expired-callback':() => {token='';updateReady();},
    'error-callback':() => {token='';formMessage.textContent='验证暂时无法完成，请刷新后重试。';updateReady();}
   });
@@ -117,16 +152,21 @@ form.addEventListener('submit', async event => {
  generateButton.firstElementChild.textContent = '正在写你的故事…';
  formMessage.textContent = '正在理解成语与处境，再写成一个当代故事。请稍等，已有作品会保留。';
  outputMessage.textContent = '';
+ const started = Date.now();
+ const progress = setInterval(() => {
+  formMessage.textContent = '故事仍在生成，已等待'+Math.floor((Date.now()-started)/1000)+'秒。请保持页面打开，已有作品会保留。';
+ },10000);
  try {
-  const response = await fetch(config.endpoint, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(request),signal:AbortSignal.timeout(75000)});
-  const data = await response.json();
+  const {response,data} = await requestJSON(config.endpoint, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(request)}, 150000);
   if (!response.ok) throw new Error(typeof data.error === 'string' ? data.error : '生成暂时不可用，请稍后重试。');
   if (!validStory(data.story)) throw new Error('故事内容不完整，请重新生成。');
   renderStory(data.story, false); formMessage.textContent = '故事已完成。你可以阅读、复制，或尝试一个相关成语。';
   document.getElementById('output').scrollIntoView({block:'start',behavior:'smooth'});
  } catch (error) {
-  formMessage.textContent = error.name === 'TimeoutError' || error.name === 'AbortError' ? '生成等待超时，请稍后重试。你的输入和已有作品都还在。' : error instanceof TypeError ? '连接创作服务失败，请检查网络后重试。你的输入和已有作品都还在。' : error.message;
+  formMessage.textContent = error.name === 'TimeoutError' || error.name === 'AbortError' ? '这次等待时间过长，已停止等待。请稍后重新验证再试；你的输入和已有作品都还在。' : error instanceof TypeError ? '连接创作服务失败，请重新连接或切换网络后重试。你的输入和已有作品都还在。' : error.message;
+  if(error instanceof TypeError){serviceReady=false;retryConnection.hidden=false;serviceNote.textContent='连接已中断，请重新连接后台后再试。';}
  } finally {
+  clearInterval(progress);
   busy = false;token='';manuscript.setAttribute('aria-busy','false');
   generateButton.firstElementChild.textContent = '生成我的成语故事';
   if (window.turnstile && widgetId !== undefined) window.turnstile.reset(widgetId);

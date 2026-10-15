@@ -25,7 +25,7 @@ export default {
  async fetch(request, env) {
   const path = new URL(request.url).pathname;
   const ready = Boolean(env.DEEPSEEK_API_KEY && env.TURNSTILE_SECRET_KEY && env.IP_RATE_LIMITER && env.SITE_RATE_LIMITER);
-  if (path === '/health' && request.method === 'GET') return json({ready,missing:['DEEPSEEK_API_KEY','TURNSTILE_SECRET_KEY','IP_RATE_LIMITER','SITE_RATE_LIMITER'].filter(name=>!env[name])});
+  if (path === '/health' && request.method === 'GET') return json({ready,revision:'connection-20261015',missing:['DEEPSEEK_API_KEY','TURNSTILE_SECRET_KEY','IP_RATE_LIMITER','SITE_RATE_LIMITER'].filter(name=>!env[name])});
   if (path !== '/api/story') return json({error:'页面不存在。'},404);
   if (request.headers.get('Origin') !== ORIGIN) return new Response('Forbidden',{status:403});
   if (request.method === 'OPTIONS') return new Response(null,{status:204,headers:{'Access-Control-Allow-Origin':ORIGIN,'Access-Control-Allow-Methods':'POST','Access-Control-Allow-Headers':'Content-Type','Access-Control-Max-Age':'86400','Vary':'Origin'}});
@@ -45,12 +45,13 @@ export default {
    typeof input.turnstileToken!=='string' || !input.turnstileToken || input.turnstileToken.length>2048) return json({error:'请检查成语、困惑和验证状态后重试。'},400);
   const ip=request.headers.get('CF-Connecting-IP');
   if (!ip) return json({error:'无法完成请求验证，请稍后重试。'},403);
+  let stage='verification';
   try {
    const ipLimit=await env.IP_RATE_LIMITER.limit({key:ip});
    if(!ipLimit.success)return json({error:'你刚刚创作得有些频繁，请一分钟后再试。'},429);
    const verification=await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({secret:env.TURNSTILE_SECRET_KEY,response:input.turnstileToken,remoteip:ip}),signal:AbortSignal.timeout(10000)});
    let checked;
-   try{checked=await verification.json();}catch{return json({error:'验证服务连接异常（V'+verification.status+'），请稍后重试。'},503);}
+   try{checked=await verification.json();}catch(error){if(error.name==='TimeoutError'||error.name==='AbortError')throw error;return json({error:'验证服务连接异常（V'+verification.status+'），请稍后重试。'},503);}
    const codes=Array.isArray(checked?.['error-codes'])?checked['error-codes']:[];
    if(codes.includes('invalid-input-secret')||codes.includes('missing-input-secret'))return json({error:'验证密钥配置无效，请管理员重新保存 Turnstile 的 Secret key。'},503);
    if(codes.includes('invalid-input-response')||codes.includes('missing-input-response')||codes.includes('timeout-or-duplicate'))return json({error:'验证已失效，请重新完成验证后再试。'},403);
@@ -58,11 +59,20 @@ export default {
    if(!checked?.success||checked.hostname!=='mia-08ran.github.io'||checked.action!=='create-story')return json({error:'验证未通过，请重新完成验证后再试。'},403);
    const siteLimit=await env.SITE_RATE_LIMITER.limit({key:'story'});
    if(!siteLimit.success)return json({error:'目前创作人数较多，请一分钟后再试。'},429);
+   stage='generation';
    const upstream=await fetch('https://api.deepseek.com/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+env.DEEPSEEK_API_KEY},body:JSON.stringify({
     model:env.DEEPSEEK_MODEL||'deepseek-flash',messages:[{role:'system',content:SYSTEM},{role:'user',content:JSON.stringify({mode:input.mode,idiom:input.idiom.trim(),concern:input.concern.trim(),theme:input.theme})}],
     thinking:{type:'disabled'},response_format:{type:'json_object'},max_tokens:3500,stream:false
-   }),signal:AbortSignal.timeout(60000)});
-   if(!upstream.ok)return json({error:upstream.status===429?'AI服务繁忙，请稍后再试。':'AI创作服务暂时不可用，请稍后再试。'},502);
+   }),signal:AbortSignal.timeout(120000)});
+   if(!upstream.ok){
+    const failure=upstream.status===401?{error:'AI服务密钥无效，请联系管理员检查 DeepSeek 配置。',code:'AI_AUTH_ERROR'}:
+     upstream.status===402?{error:'AI服务余额不足，请联系管理员充值后再试。',code:'AI_BALANCE_EMPTY'}:
+     upstream.status===400||upstream.status===422?{error:'AI服务的模型或请求参数配置有误，请联系管理员检查。',code:'AI_REQUEST_ERROR'}:
+     upstream.status===429?{error:'AI服务繁忙，请稍后再试。',code:'AI_RATE_LIMITED'}:
+     upstream.status>=500?{error:'AI服务暂时不可用，请稍后再试。',code:'AI_UNAVAILABLE'}:
+     {error:'AI创作服务暂时不可用，请稍后再试。',code:'AI_UPSTREAM_ERROR'};
+    return json(failure,502);
+   }
    const completion=await upstream.json();
    const choice=completion.choices?.[0];
    if(!choice||choice.finish_reason!=='stop')return json({error:'故事未完整写完，请重新生成。'},502);
@@ -72,7 +82,10 @@ export default {
    if(input.idiom.trim() && story.idiom!==input.idiom.trim())return json({error:'故事未能围绕指定成语完成，请重新生成。'},502);
    return json({story});
   } catch (error) {
-   return json({error:error.name==='TimeoutError'||error.name==='AbortError'?'生成等待超时，请稍后重试。':'创作服务暂时不可用，请稍后重试。'},503);
+   if(error.name==='TimeoutError'||error.name==='AbortError')return json(stage==='verification'
+    ?{error:'验证服务等待超时，请重新完成验证后再试。',code:'VERIFICATION_TIMEOUT'}
+    :{error:'AI生成等待超时，请稍后重新验证后再试。你的输入和已有作品都还在。',code:'AI_TIMEOUT'},503);
+   return json({error:stage==='verification'?'验证服务暂时不可用，请稍后重试。':'AI创作服务暂时不可用，请稍后重试。'},503);
   }
  }
 };
