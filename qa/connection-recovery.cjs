@@ -38,7 +38,7 @@ const server=http.createServer((req,res)=>{
   await page.goto('http://127.0.0.1:'+server.address().port+'/index.html#about');
   await page.locator('#creation-overview [data-create]').click();
   await page.locator('#creation-idiom').fill('邯郸学步');
-  await page.locator('#creation-concern').fill('保留我写的困惑');
+  await page.locator('#toggle-optional').click();await page.locator('#creation-concern').fill('保留我写的困惑');
   await page.locator('#service-note').filter({hasText:'暂时无法连接'}).waitFor();
   assert.equal(healthCalls,2);assert(await page.locator('#generate-story').isDisabled());
   assert(await page.locator('#retry-connection').isVisible());

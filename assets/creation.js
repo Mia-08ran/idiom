@@ -50,19 +50,40 @@ function renderStory(story, example) {
  });
  document.getElementById('related-list').replaceChildren(...cards);
 }
+const idiomCard = document.getElementById('idiom-card');
+const concernCard = document.getElementById('concern-card');
+const optionalToggle = document.getElementById('toggle-optional');
+let optionalExpanded = false;
+function updateInputCards() {
+ const fromIdiom = form.elements.mode.value === 'idiom';
+ idiomCard.hidden = !fromIdiom && !optionalExpanded;
+ concernCard.hidden = fromIdiom && !optionalExpanded;
+ idiomCard.classList.toggle('is-active', fromIdiom);
+ concernCard.classList.toggle('is-active', !fromIdiom);
+ optionalToggle.setAttribute('aria-expanded', String(optionalExpanded));
+ optionalToggle.setAttribute('aria-controls', fromIdiom ? 'concern-card' : 'idiom-card');
+ document.getElementById('extra-field-label').textContent = fromIdiom ? '补充你的困惑' : '补充一个成语';
+ document.getElementById('extra-field-action').textContent = optionalExpanded ? '−' : '＋';
+}
 function updateMode() {
  const fromIdiom = form.elements.mode.value === 'idiom';
  idiomInput.required = fromIdiom; concernInput.required = !fromIdiom;
- document.getElementById('idiom-optional').textContent = fromIdiom ? '必填' : '选填';
- document.getElementById('concern-optional').textContent = fromIdiom ? '选填' : '必填';
+ for (const [id, required] of [['idiom-optional', fromIdiom], ['concern-optional', !fromIdiom]]) {
+  const badge = document.getElementById(id);
+  badge.textContent = required ? '必填' : '选填';
+  badge.dataset.required = String(required);
+ }
  document.getElementById('idiom-hint').textContent = fromIdiom ? '保留成语的内核，看看它在今天的意义。' : '不填也可以，让 AI 根据你的困惑推荐合适的成语。';
+ document.getElementById('mode-card').append(fromIdiom ? idiomCard : concernCard, optionalToggle, fromIdiom ? concernCard : idiomCard);
+ optionalExpanded = false; updateInputCards();
 }
+optionalToggle.addEventListener('click', () => {optionalExpanded = !optionalExpanded; updateInputCards();});
 function chooseIdiom(idiom) {
  idiomInput.value = idiom;
  form.elements.mode.value = 'idiom'; updateMode();
 }
 form.querySelectorAll('[name="mode"]').forEach(radio => radio.addEventListener('change', updateMode));
-document.querySelectorAll('[data-idiom]').forEach(button => button.addEventListener('click', () => {chooseIdiom(button.dataset.idiom);idiomInput.focus();}));
+document.querySelectorAll('[data-idiom]').forEach(button => button.addEventListener('click', () => {idiomInput.value=button.dataset.idiom;idiomInput.focus();}));
 document.querySelectorAll('[data-theme]').forEach(button => button.addEventListener('click', () => {
  theme = button.dataset.theme;
  document.querySelectorAll('[data-theme]').forEach(item => item.setAttribute('aria-pressed', String(item === button)));
@@ -146,7 +167,8 @@ function validStory(story) {
 form.addEventListener('submit', async event => {
  event.preventDefault();
  if (busy || !configured || !serviceReady || !token || !form.reportValidity()) return;
- const request = {mode:form.elements.mode.value,idiom:idiomInput.value.trim(),concern:concernInput.value.trim(),theme,turnstileToken:token};
+ const mode = form.elements.mode.value;
+ const request = {mode,idiom:mode === 'idiom' || optionalExpanded ? idiomInput.value.trim() : '',concern:mode === 'concern' || optionalExpanded ? concernInput.value.trim() : '',theme,turnstileToken:token};
  if ((request.mode === 'idiom' && !request.idiom) || (request.mode === 'concern' && !request.concern)) {formMessage.textContent='请先写下一个成语或你的困惑。';return;}
  busy = true; updateReady(); manuscript.setAttribute('aria-busy','true');
  generateButton.firstElementChild.textContent = '正在写你的故事…';
